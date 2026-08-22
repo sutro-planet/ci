@@ -65,7 +65,7 @@ jobs:
           git diff --check "$BASE_SHA" "$HEAD_SHA"
 
       - name: Validate GitHub Actions workflows
-        uses: sutro-planet/ci/actions/actionlint@main
+        uses: sutro-planet/ci/actions/actionlint@dd609cc76867492af993d78a5e64f9cc804d0c06
 
       # No toolchain setup here on purpose: the runner image already carries
       # what today's consumers need, and a step added for a hypothetical

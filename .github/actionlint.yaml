@@ -1,0 +1,6 @@
+# actionlint cannot know a self-hosted label exists. Every consumer carries an
+# identical copy of this file; it stays per-repository because actionlint reads
+# it from the repository being linted, not from the action that runs it.
+self-hosted-runner:
+  labels:
+    - sutro-k8s-runner-set

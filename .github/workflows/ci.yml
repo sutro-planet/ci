@@ -34,5 +34,13 @@ jobs:
       - name: Lint workflows with the published action
         uses: ./actions/actionlint
 
+      # The self-hosted image carries python3 but no Node — the contract tests
+      # failed with `node: command not found` on their first run, on a runner
+      # whose consumers' workflows all say this in a comment somewhere.
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22.19.0"
+
       - name: Contract tests
         run: node tests/contract.mjs

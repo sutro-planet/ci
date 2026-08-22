@@ -67,10 +67,11 @@ jobs:
       - name: Validate GitHub Actions workflows
         uses: sutro-planet/ci/actions/actionlint@dd609cc76867492af993d78a5e64f9cc804d0c06
 
-      # No toolchain setup here on purpose: the runner image already carries
-      # what today's consumers need, and a step added for a hypothetical
-      # consumer is scaffolding nobody asked for. Add it when a caller fails
-      # without it.
+      # No toolchain setup here: the one consumer using this input runs
+      # python3, which the self-hosted image has. It does NOT have Node — a
+      # Node-based contract command will fail with `command not found`, and
+      # since a caller cannot inject steps into a reusable workflow, that is
+      # the point at which this workflow needs a toolchain input. Not before.
       - name: Run repository contract tests
         if: inputs.contract-test-command != ''
         env:

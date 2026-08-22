@@ -175,25 +175,35 @@ function cmdList() {
 }
 
 function cmdPrune(confirm) {
-  const trees = worktrees();
-  const primaryPath = trees[0].path;
-  const removable = trees.filter(
-    (tree) =>
-      tree.path !== primaryPath && staleness(tree, primaryPath) !== null && !isDirty(tree.path),
-  );
-  if (removable.length === 0) {
-    console.log("nothing to prune (dirty trees and unfinished threads are never removed)");
-    return;
-  }
-  for (const tree of removable) {
-    if (!confirm) {
-      console.log(`would remove ${tree.path} (${tree.branch ?? "detached"})`);
-      continue;
+  // Repeated passes, because removing a nested worktree can make its PARENT
+  // prunable: while the child's directory still existed it counted as
+  // untracked content, so the parent read as dirty. A single pass left one
+  // behind on the first real run of this tool.
+  let removedAny = false;
+  for (let pass = 0; pass < 5; pass += 1) {
+    const trees = worktrees();
+    const primaryPath = trees[0].path;
+    const removable = trees.filter(
+      (tree) =>
+        tree.path !== primaryPath && staleness(tree, primaryPath) !== null && !isDirty(tree.path),
+    );
+    if (removable.length === 0) break;
+    for (const tree of removable) {
+      if (!confirm) {
+        console.log(`would remove ${tree.path} (${tree.branch ?? "detached"})`);
+        continue;
+      }
+      git(["worktree", "remove", tree.path]);
+      console.log(`removed ${tree.path}`);
+      removedAny = true;
     }
-    git(["worktree", "remove", tree.path]);
-    console.log(`removed ${tree.path}`);
+    if (!confirm) break; // a dry run cannot change what the next pass sees
   }
-  if (!confirm) console.log("\nre-run with --yes to remove them");
+  if (!confirm) {
+    console.log("\nre-run with --yes to remove them");
+  } else if (!removedAny) {
+    console.log("nothing to prune (dirty trees and unfinished threads are never removed)");
+  }
 }
 
 const [, , command, ...rest] = process.argv;

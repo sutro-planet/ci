@@ -105,6 +105,11 @@ check(
 );
 check("a dirty tree is never pruned", worktree.includes("!isDirty(tree.path)"));
 check(
+  "prune converges instead of stopping after one pass",
+  /for \(let pass = 0; pass < \d+; pass \+= 1\)/.test(worktree),
+  "removing a nested worktree can make its parent prunable — one pass missed it",
+);
+check(
   "the primary checkout is never pruned",
   worktree.includes("tree.path !== primaryPath"),
 );

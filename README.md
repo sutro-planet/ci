@@ -30,6 +30,7 @@ consumer, it belongs in this repository.
 | --- | --- | --- |
 | `actions/actionlint` | composite action | checksum-verified actionlint, no root required |
 | `.github/workflows/validate.yml` | reusable workflow | changed-range whitespace + actionlint + an optional contract-test command |
+| `actions/publish-review` | composite action | validate a reviewer's structured result and post it as a SHA-labelled comment |
 | `scripts/worktree.mjs` | agent tooling | one worktree per thread, and removing the finished ones |
 
 ## Agent tooling

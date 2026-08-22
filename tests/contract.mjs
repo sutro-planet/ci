@@ -124,6 +124,32 @@ check(
   worktree.includes("tree.path !== primaryPath"),
 );
 
+// --- the review publisher: the trusted half of a workflow that spends money -
+const publish = readFileSync(join(root, "actions/publish-review/action.yml"), "utf8");
+const render = readFileSync(join(root, "actions/publish-review/render.mjs"), "utf8");
+check(
+  "it posts only onto the head that was actually reviewed",
+  render.includes("reviewed head is no longer the current PR head") &&
+    publish.includes("--expected-head"),
+  "a verdict on a superseded revision reads as current",
+);
+check(
+  "network calls retry — a dropped connection discards a paid review",
+  (codeOnly(publish).match(/retry /g) ?? []).length >= 2,
+);
+check(
+  "the reviewer's own text can never become the comment structure",
+  render.includes("forbidden control character") &&
+    render.includes("MAX_DETAILS_BYTES") &&
+    render.includes("PASS details must be empty"),
+);
+check(
+  "per-consumer wording is passed in, not baked in",
+  render.includes("process.env.REVIEW_HEADING") &&
+    render.includes("process.env.REVIEW_PASS_SENTENCE"),
+);
+check("the publisher pins its own setup-node", /setup-node@[0-9a-f]{40}/.test(publish));
+
 const workflows = readdirSync(join(root, ".github/workflows")).sort();
 console.log(`workflows: ${workflows.join(", ")}`);
 console.log(failures === 0 ? "contract: OK" : `contract: ${failures} failure(s)`);

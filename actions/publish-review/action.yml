@@ -1,0 +1,85 @@
+name: publish-review
+description: >-
+  Validate a design reviewer's structured result and post it as a SHA-labelled
+  advisory comment. The trusted half of the review workflow.
+
+inputs:
+  result-json:
+    description: The reviewer's structured output (conclusion, details, reviewed_head_sha).
+    required: true
+  pr-number:
+    required: true
+  heading:
+    description: 'Comment heading, e.g. "## Opus Review". The reviewed SHA is appended.'
+    required: true
+  pass-sentence:
+    description: The single line posted for a PASS verdict.
+    required: true
+  incomplete-sentence:
+    required: false
+    default: INCOMPLETE — the review could not be completed.
+  github-token:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node
+      # The self-hosted image has python3 and no Node; the renderer is Node
+      # because that is the language of the two copies that got merged here.
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      with:
+        node-version: "22.19.0"
+
+    - name: Render and publish
+      shell: bash
+      env:
+        REVIEW_JSON: ${{ inputs.result-json }}
+        REVIEW_HEADING: ${{ inputs.heading }}
+        REVIEW_PASS_SENTENCE: ${{ inputs.pass-sentence }}
+        REVIEW_INCOMPLETE_SENTENCE: ${{ inputs.incomplete-sentence }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        REPOSITORY: ${{ github.repository }}
+        REQUEST_PATH: ${{ runner.temp }}/review-${{ github.run_id }}-${{ github.run_attempt }}.json
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        # A dropped TLS connection to api.github.com discards a review that has
+        # already been paid for, so the network calls retry. One consumer
+        # learned this and the other never received the fix.
+        retry() {
+          local attempt=0
+          until "$@"; do
+            attempt=$((attempt + 1))
+            if [ "$attempt" -ge 3 ]; then return 1; fi
+            sleep 5
+          done
+        }
+        # Post only onto the head that was actually reviewed: a verdict on a
+        # superseded revision is worse than no verdict, because it reads as
+        # current.
+        live_head="$(
+          retry gh pr view "$PR_NUMBER" \
+            --repo "$REPOSITORY" \
+            --json headRefOid,state \
+            --jq 'select(.state == "OPEN") | .headRefOid'
+        )"
+        if [ -z "$live_head" ]; then
+          echo "::error::Pull request is no longer open or has no current head."
+          exit 1
+        fi
+        node "$ACTION_PATH/render.mjs" --expected-head "$live_head" --output "$REQUEST_PATH"
+        comment_id="$(
+          retry gh api --method POST \
+            "repos/$REPOSITORY/issues/$PR_NUMBER/comments" \
+            --input "$REQUEST_PATH" \
+            --jq '.id'
+        )"
+        case "$comment_id" in
+          "" | *[!0-9]*)
+            echo "::error::GitHub did not return a created comment ID."
+            exit 1
+            ;;
+        esac
+        echo "Published advisory comment $comment_id."

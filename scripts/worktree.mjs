@@ -7,7 +7,14 @@
  *
  *   sutro-worktree new <issue> <branch>   create ../<repo>-<issue> from origin/main
  *   sutro-worktree list                   every worktree, with what is stale about it
- *   sutro-worktree prune [--yes]          remove finished worktrees; never a dirty one
+ *   sutro-worktree remove [path]          remove ONE tree — yours, by default
+ *   sutro-worktree prune [--yes]          machine-wide sweep; maintainer housekeeping
+ *
+ * `remove` is the routine one. `prune` acts on every session's trees at once
+ * and judges "finished" by pull-request state, which is not the same as a
+ * handoff being complete — verification, acceptance notes and issue closure
+ * all happen after merge. Sweeping on that criterion can delete a live
+ * session's checkout mid-handoff.
  *
  * It exists because the raw commands are easy to fumble, and fumbling this one
  * means editing another session's tree. Run it from anywhere inside the target
@@ -174,6 +181,34 @@ function cmdList() {
   }
 }
 
+/** Remove one worktree — by default the one you are standing in. The routine
+ * cleanup: an agent finishes its own thread and takes its own tree with it,
+ * touching nobody else's. */
+function cmdRemove(pathArg) {
+  const trees = worktrees();
+  const primaryPath = trees[0].path;
+  const target = resolve(pathArg ?? process.cwd());
+  const tree =
+    trees.find((candidate) => target === candidate.path || target.startsWith(`${candidate.path}/`));
+  if (!tree) fail(`${target} is not inside a registered worktree`);
+  if (tree.path === primaryPath) {
+    fail("that is the primary checkout — it is the coordination surface, not a thread's tree");
+  }
+  if (isDirty(tree.path)) {
+    fail(`${tree.path} has uncommitted changes; commit, push, or move them before removing`);
+  }
+  // Not a refusal: an agent may legitimately abandon a thread. But an open PR
+  // usually means the handoff is not finished, and the point of this command
+  // is that the caller decides for their own tree only.
+  const open = tree.branch && threadClosed(tree.branch) === null && commitsAhead(tree.branch) > 0;
+  if (open) console.log(`note: ${tree.branch} has no merged/closed PR — removing anyway`);
+  git(["worktree", "remove", tree.path]);
+  console.log(`removed ${tree.path}`);
+  if (target !== tree.path || process.cwd().startsWith(tree.path)) {
+    console.log("you were standing in it — cd somewhere else before running git again");
+  }
+}
+
 function cmdPrune(confirm) {
   // Repeated passes, because removing a nested worktree can make its PARENT
   // prunable: while the child's directory still existed it counted as
@@ -214,9 +249,12 @@ switch (command) {
   case "list":
     cmdList();
     break;
+  case "remove":
+    cmdRemove(rest[0]);
+    break;
   case "prune":
     cmdPrune(rest.includes("--yes"));
     break;
   default:
-    fail("usage: worktree.mjs new <issue> <branch> | list | prune [--yes]");
+    fail("usage: sutro-worktree new <issue> <branch> | list | remove [path] | prune [--yes]");
 }

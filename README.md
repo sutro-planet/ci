@@ -40,12 +40,23 @@ that a later session reads as current. One repository was found holding 51
 finished worktrees against 2 live ones.
 
 ```sh
-npm install -g github:sutro-planet/ci     # once per machine
+npm install -g github:sutro-planet/ci#<commit>   # once per machine, pinned
 cd any-consumer-repository
 sutro-worktree list                       # what is stale, and why
 sutro-worktree new 42 feat/42-thing       # ../<repo>-42 from a fresh origin/main
-sutro-worktree prune --yes                # finished trees only, never a dirty one
+sutro-worktree remove                     # the tree you are standing in — the routine one
+sutro-worktree prune --yes                # machine-wide sweep; maintainer housekeeping
 ```
+
+**`remove` is what an agent runs; `prune` is not.** A sweep judges "finished"
+by pull-request state, and a merged pull request is not a finished handoff —
+verification, acceptance notes and issue closure all happen after merge. Run
+machine-wide and non-interactively, it can delete another session's checkout
+mid-handoff. `remove` touches one tree, refuses the primary checkout, and
+refuses anything dirty.
+
+Pin the install. The tool deletes working trees, and an unpinned global
+install floats to whatever the default branch became.
 
 Everything is derived from the working directory — repository root, naming
 prefix, and remote — so one install serves every repository.

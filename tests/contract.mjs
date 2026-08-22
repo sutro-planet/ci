@@ -105,6 +105,16 @@ check(
 );
 check("a dirty tree is never pruned", worktree.includes("!isDirty(tree.path)"));
 check(
+  "there is a scoped removal, not only a machine-wide sweep",
+  worktree.includes("function cmdRemove(") && worktree.includes('case "remove":'),
+  "a sweep judged by PR state can delete a live session's tree mid-handoff",
+);
+check(
+  "scoped removal refuses the primary checkout and dirty trees",
+  worktree.includes("that is the primary checkout") &&
+    worktree.includes("has uncommitted changes; commit, push, or move them"),
+);
+check(
   "prune converges instead of stopping after one pass",
   /for \(let pass = 0; pass < \d+; pass \+= 1\)/.test(worktree),
   "removing a nested worktree can make its parent prunable — one pass missed it",

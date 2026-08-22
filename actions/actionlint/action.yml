@@ -1,0 +1,29 @@
+name: actionlint
+description: Lint GitHub Actions workflows with a checksum-verified actionlint release.
+
+inputs:
+  paths:
+    description: >-
+      Workflow files to lint. Defaults to every workflow in the calling
+      repository. actionlint discovers them itself when given no arguments.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    # A composite action, not a script the caller checks out: a reusable
+    # workflow's `run:` steps execute in the CALLER's workspace and cannot see
+    # this repository's files, while the runner fetches an action by reference.
+    - name: Run actionlint
+      shell: bash
+      env:
+        PATHS: ${{ inputs.paths }}
+      run: |
+        set -euo pipefail
+        if [ -n "$PATHS" ]; then
+          # shellcheck disable=SC2086 # deliberate word splitting: a path list
+          "${{ github.action_path }}/run.sh" $PATHS
+        else
+          "${{ github.action_path }}/run.sh"
+        fi

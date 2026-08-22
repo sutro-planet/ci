@@ -1,0 +1,80 @@
+name: Validate repository
+
+# The repository-hygiene half of every consumer's CI: whitespace on the changed
+# range, then actionlint. Before extraction this job differed between the two
+# repositories that had it by six lines, all incidental.
+#
+# The fork guard stays with the CALLER — only the caller knows its own fork
+# policy, and a reusable workflow cannot express "skip me" cleanly. Callers use:
+#
+#   jobs:
+#     validate:
+#       if: github.event_name != 'pull_request' ||
+#           github.event.pull_request.head.repo.full_name == github.repository
+#       uses: sutro-planet/ci/.github/workflows/validate.yml@<sha>
+#       with:
+#         contract-test-command: npm run test:contracts
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: Runner label set.
+        type: string
+        required: false
+        default: sutro-k8s-runner-set
+      timeout-minutes:
+        type: number
+        required: false
+        default: 10
+      contract-test-command:
+        description: >-
+          Optional command run after actionlint, for repositories whose
+          workflow-contract tests live outside their main test suite. Runs in
+          the repository root.
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate repository
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          # The whitespace check diffs a range, so it needs history.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check changed-file whitespace
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE_SHA" ] || printf '%s' "$BASE_SHA" | grep -Eq '^0+$'; then
+            echo "No usable base SHA; skipping range whitespace check."
+            exit 0
+          fi
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+      - name: Validate GitHub Actions workflows
+        uses: sutro-planet/ci/actions/actionlint@main
+
+      # No toolchain setup here on purpose: the runner image already carries
+      # what today's consumers need, and a step added for a hypothetical
+      # consumer is scaffolding nobody asked for. Add it when a caller fails
+      # without it.
+      - name: Run repository contract tests
+        if: inputs.contract-test-command != ''
+        env:
+          CONTRACT_TEST_COMMAND: ${{ inputs.contract-test-command }}
+        run: |
+          set -euo pipefail
+          bash -c "$CONTRACT_TEST_COMMAND"

@@ -87,6 +87,28 @@ for (const leak of ["kingdoms", "meet-u", "story-orbit", "portal-interactive"]) 
   check(`no consumer-specific name: ${leak}`, !shared.toLowerCase().includes(leak));
 }
 
+// --- the agent tooling this repository also publishes ---------------------
+const worktree = readFileSync(join(root, "scripts/worktree.mjs"), "utf8");
+check(
+  "the worktree tool derives its repository from the caller, not its own path",
+  worktree.includes('execFileSync("git", ["rev-parse", "--show-toplevel"]'),
+  "installed globally, the tool's own location says nothing about the target repo",
+);
+check(
+  "it names new trees from the primary worktree, not a hardcoded prefix",
+  worktree.includes("basename(primary)"),
+);
+check(
+  "finished threads are detected by PR state, not ancestry alone",
+  worktree.includes("gh") && worktree.includes("--head") && worktree.includes("squash"),
+  "these repositories squash-merge: a merged branch is never an ancestor of main",
+);
+check("a dirty tree is never pruned", worktree.includes("!isDirty(tree.path)"));
+check(
+  "the primary checkout is never pruned",
+  worktree.includes("tree.path !== primaryPath"),
+);
+
 const workflows = readdirSync(join(root, ".github/workflows")).sort();
 console.log(`workflows: ${workflows.join(", ")}`);
 console.log(failures === 0 ? "contract: OK" : `contract: ${failures} failure(s)`);

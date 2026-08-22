@@ -30,6 +30,29 @@ consumer, it belongs in this repository.
 | --- | --- | --- |
 | `actions/actionlint` | composite action | checksum-verified actionlint, no root required |
 | `.github/workflows/validate.yml` | reusable workflow | changed-range whitespace + actionlint + an optional contract-test command |
+| `scripts/worktree.mjs` | agent tooling | one worktree per thread, and removing the finished ones |
+
+## Agent tooling
+
+`sutro-worktree` is a local command, not CI: repositories worked by several
+agent sessions accumulate worktrees, and an abandoned one pins a stale commit
+that a later session reads as current. One repository was found holding 51
+finished worktrees against 2 live ones.
+
+```sh
+npm install -g github:sutro-planet/ci     # once per machine
+cd any-consumer-repository
+sutro-worktree list                       # what is stale, and why
+sutro-worktree new 42 feat/42-thing       # ../<repo>-42 from a fresh origin/main
+sutro-worktree prune --yes                # finished trees only, never a dirty one
+```
+
+Everything is derived from the working directory — repository root, naming
+prefix, and remote — so one install serves every repository.
+
+**Finished is decided by pull-request state, not ancestry.** These repositories
+squash-merge, so a merged branch's head is never an ancestor of `main`; by
+ancestry one repository looked like 9 stale worktrees where it actually had 51.
 
 ## Consuming it
 

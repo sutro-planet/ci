@@ -1,0 +1,17 @@
+{
+  "name": "@sutro-planet/ci",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared CI harness: reusable workflows, composite actions, and agent tooling",
+  "type": "module",
+  "bin": {
+    "sutro-worktree": "scripts/worktree.mjs"
+  },
+  "files": [
+    "scripts",
+    "actions"
+  ],
+  "engines": {
+    "node": ">=22"
+  }
+}

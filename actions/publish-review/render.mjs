@@ -62,12 +62,56 @@ if (raw === undefined) fail("structured review output is missing");
 if (Buffer.byteLength(raw, "utf8") > MAX_RESULT_BYTES)
   fail("structured review result is too large");
 
+/**
+ * Top-level keys in source order, strings and nesting respected.
+ *
+ * JSON.parse is last-value-wins, so a duplicate field simply disappears — the
+ * surviving value is still validated below and cannot bypass a rule, which is
+ * why one of the merged copies dropped this check. The other kept it, and
+ * kept it for a better reason than bypass: a result carrying the same field
+ * twice is not something the schema can produce, so it is evidence the
+ * payload was not produced the way we think, and the cheapest response to
+ * that is to refuse it.
+ */
+function topLevelKeys(text) {
+  const keys = [];
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let current = null;
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') {
+        inString = false;
+        if (depth === 1 && current !== null) {
+          // A string at depth 1 is a key only if a colon follows it.
+          const rest = text.slice(i + 1).match(/^\s*:/);
+          if (rest) keys.push(current);
+          current = null;
+        }
+      } else if (current !== null) current += c;
+      continue;
+    }
+    if (c === '"') {
+      inString = true;
+      current = depth === 1 ? "" : null;
+    } else if (c === "{" || c === "[") depth += 1;
+    else if (c === "}" || c === "]") depth -= 1;
+  }
+  return keys;
+}
+
 let payload;
 try {
   payload = JSON.parse(raw);
 } catch {
   fail("structured review result is not valid JSON");
 }
+const seen = topLevelKeys(raw);
+if (new Set(seen).size !== seen.length) fail("structured review result has a duplicate field");
 if (
   payload === null ||
   typeof payload !== "object" ||

@@ -144,6 +144,11 @@ check(
     render.includes("PASS details must be empty"),
 );
 check(
+  "a result carrying the same field twice is refused",
+  render.includes("has a duplicate field") && render.includes("function topLevelKeys"),
+  "the schema cannot produce one, so it is evidence the payload is not what we think",
+);
+check(
   "per-consumer wording is passed in, not baked in",
   render.includes("process.env.REVIEW_HEADING") &&
     render.includes("process.env.REVIEW_PASS_SENTENCE"),
